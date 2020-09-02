@@ -169,7 +169,7 @@ ORDER BY CONCAT(left(cast(yearid as varchar(4)), 3) ,'0') ASC
 -- 7.  From 1970 – 2016, what is the largest number of wins for a team that did not win the world series? Seatlle Mariners, 116 Wins 
 --     What is the smallest number of wins for a team that did win the world series? - Toronto Blue Jays, 37 Wins
 -- 	Doing this will probably result in an unusually small number of wins for a world series champion – determine why this is the case. - 
-    baseball strike in 1981, resulting in fewer games on average being played 
+    baseball strike for 50 dya in 1981, resulting in fewer games on average being played during that season. 
 -- in the season. TOR played in 106 games that year, one less than the average 107.
 -- 	Then redo your query, excluding the problem year. 
 -- 	How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? 
@@ -192,6 +192,7 @@ ORDER BY CONCAT(left(cast(yearid as varchar(4)), 3) ,'0') ASC
   
   -- least wins--
 	 SELECT teamid,
+	 yearid,
 			franchid,
 			divid,
 			name,
@@ -200,6 +201,7 @@ ORDER BY CONCAT(left(cast(yearid as varchar(4)), 3) ,'0') ASC
    WHERE yearid BETWEEN '1970' and '2016'
    AND WSWin = 'N'
    GROUP BY teamid,
+   			yearid,
 			franchid,
 			divid,
 			name
@@ -212,11 +214,22 @@ ORDER BY CONCAT(left(cast(yearid as varchar(4)), 3) ,'0') ASC
    AND WSWin = 'N'
    --and teamid = 'TOR'  
    ORDER BY  G ASC
+   
+   
+   
+   
+   
    -- average games played in 1981 was 107 games
    SELECT AVG(G)
     FROM teams
    WHERE yearid = '1981'
    AND WSWin = 'N'
+   
+   SELECT AVG(G)
+    FROM teams
+   WHERE yearid = '1982'
+   AND WSWin = 'N'
+   
    
    -- 1981--
    SELECT     
@@ -316,15 +329,13 @@ ORDER BY playerid
 SELECT playerid, awardid, yearid,lgid
 into temp table ALData
 FROM public.awardsmanagers
-WHERE lgid = 'AL' 
-      AND awardid = 'TSN Manager of the Year'
+WHERE lgid = 'AL' AND awardid = 'TSN Manager of the Year'
 
 -- NL league award winners
 SELECT playerid, awardid, yearid,lgid
---into temp table NLData
+into temp table NLData
 FROM public.awardsmanagers
-WHERE lgid = 'NL' 
-	AND awardid = 'TSN Manager of the Year'
+WHERE lgid = 'NL' AND awardid = 'TSN Manager of the Year'
 
 --    "leylaji99"
 --    "johnsda02"
@@ -386,7 +397,7 @@ UNION
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 --10).Analyze all the colleges in the state of Tennessee. Which college has had the most success in the major leagues. 
 --     Use whatever metric for success you like - number of players, number of games, salaries, world series wins, etc. 
-
+-- Based on nuber of players active in the majors by school, University of Tennessee has the largest number of players.
    
    SELECT schoolid
    		  ,schoolname 
@@ -396,8 +407,20 @@ UNION
    ORDER BY schoolname ASC
    
    DROP TABLE TNColleges
-   SELECT * FROM TNColleges
+   --SELECT * FROM TNColleges
    
+   
+   
+SELECT playerid, 
+COUNT(*) as AllStarsCnt
+INTO temporary table AllStarGames
+FROM public.allstarfull
+GROUP BY playerid
+ORDER BY 2 DESC
+
+select * from AllStarGames
+ 
+--DROP TABLE AllStarGames
    
    SELECT count(WSWin) as WSWinCnt, 
    		  teamid, 
@@ -413,70 +436,171 @@ UNION
    
    drop table TotalWSWins
    
-   SELECT DISTINCT  
-        p.namelast 
-	   ,p.namefirst
-	   ,CONCAT(p.namelast, ', ', p.namefirst) as player_full_name
-	   ,p.playerid
-	   ,s.schoolid 
-	   ,s.schoolname
-	   ,t.name as teamname
-	   ,t.yearid
-	   ,COALESCE(ps.totalSalary,0) as totalSalary 
-	  
-FROM public.people p
-  
-  LEFT JOIN public.collegeplaying c
-    ON p.playerid = c.playerid
-	
-  INNER JOIN public.appearances a
-  	on p.playerid = a.playerid
 
-  INNER JOIN teams t
-   on a.teamid = a.teamid and a.lgid = t.lgid and a.yearid = t.yearid
-	
-  INNER JOIN TNColleges s 
-    ON c.schoolid = s.schoolid
-  
-  INNER JOIN playersalaries ps
-   ON p.playerid = ps.playerid
-
-WHERE t.WSWin = 'Y'
-ORDER BY totalSalary DESC
-   
-
-SELECT 
-        DISTINCT  
-        p.namelast 
-	   ,p.namefirst
-	   ,CONCAT(p.namelast, ', ', p.namefirst) as player_full_name
-	   ,p.playerid
-	   ,s.schoolid 
-	   ,s.schoolname
-	   --,t.name as teamname	   
-	   ,COALESCE(ps.totalSalary,0) as totalSalary 
-   
+SELECT
+	s.schoolname, 
+	RANK () OVER ( 
+		ORDER BY COUNT(p.playerid) DESC
+	) ranking 
 FROM public.people p
   
   INNER JOIN public.collegeplaying c
     ON p.playerid = c.playerid
 	
   INNER JOIN public.appearances a
-  	on p.playerid = a.playerid
+  	ON p.playerid = a.playerid
 
-  --INNER JOIN teams t
-  -- on a.teamid = a.teamid and a.lgid = t.lgid and a.yearid = t.yearid
+  INNER JOIN teams t
+   ON a.teamid = a.teamid 
+   	and a.lgid = t.lgid 
+	and a.yearid = t.yearid
 	
   INNER JOIN TNColleges s 
     ON c.schoolid = s.schoolid
-  
-  INNER JOIN playersalaries ps
-   ON p.playerid = ps.playerid
 
-ORDER BY totalSalary DESC
+GROUP BY s.schoolname
+ 
 
-select playerid, name, yearid
-from teams
-where playerid = 'h'
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   11) --Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. 
+    -- As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
    
+     
+-- SELECT t.yearid
+-- 	   ,t.teamid
+-- 	   ,t.name
+-- 	   ,t.W as Wins
+-- 	   ,SUM(s.salary) as TotalSalary 
+-- FROM teams t
+-- INNER JOIN salaries s
+-- 	ON t.teamid = s.teamid 
+-- 	  and t.yearid = s.yearid
+-- --WHERE t.teamid = 'OAK'
+-- GROUP BY t.yearid
+-- 	   ,t.teamid
+-- 	   ,t.name
+-- 	   ,t.W
+-- ORDER BY t.w DESC
    
+ --CREATE EXTENSION tablefunc;
+   
+    SELECT 
+   		  t.yearid,
+   	      t.teamid,
+          CAST(corr(a.Wins, a.TotalSalary) as DECIMAL(10,4)) as Correlation 
+    FROM(
+		SELECT t.yearid
+			   ,t.teamid
+			   ,t.name
+			   ,cast(t.W as float) as Wins
+			   ,SUM(cast(s.salary as float)) as TotalSalary 		
+		FROM teams t
+		INNER JOIN salaries s
+			ON t.teamid = s.teamid 
+			  and t.yearid = s.yearid
+		GROUP BY  t.yearid
+			     ,t.teamid
+			     ,t.name
+			     ,t.W
+	   ) AS a
+     
+    INNER JOIN teams t
+	  ON a.teamid = t.teamid 
+	  	 AND a.yearid = a.yearid
+		
+	  INNER JOIN salaries s
+			ON t.teamid = s.teamid 
+			  AND t.yearid = s.yearid   
+   WHERE t.yearid >= 2000
+   
+   GROUP BY t.yearid,
+   	        t.teamid
+			order by 3 DESC
+			
+ --------------------------------------------------------------------------------------------------------------------------------------------------------  
+   12) --In this question, you will explore the connection between number of wins and attendance.
+    
+    -- Does there appear to be any correlation between attendance at home games and number of wins? 
+     --Do teams that win the world series see a boost in attendance the following year? 
+     --What about teams that made the playoffs? Making the playoffs means either being a division winner or a wild card winner.
+    
+	SELECT 
+   		  t.yearid,
+   	      t.teamid,
+          CAST(corr(a.Wins, a.TotalHomeAttendance) as DECIMAL(10,4)) as Correlation 
+    FROM(
+        SELECT t.yearid
+			   ,t.teamid
+			   ,t.name
+			   ,cast(t.W as float) as Wins
+			   ,SUM(cast(attendance as float)) as TotalHomeAttendance 		
+		FROM teams t
+		INNER JOIN salaries s
+			ON t.teamid = s.teamid 
+			  and t.yearid = s.yearid
+	  	GROUP BY  t.yearid
+			     ,t.teamid
+			     ,t.name
+			     ,t.W 
+     ) AS a
+     
+    INNER JOIN teams t
+	     ON a.teamid = t.teamid 
+	  	 AND a.yearid = a.yearid		
+	INNER JOIN salaries s
+		ON t.teamid = s.teamid 
+		AND t.yearid = s.yearid   
+   WHERE t.yearid >= 2000
+   GROUP BY t.yearid,
+   	        t.teamid
+	ORDER BY 1 DESC
+	
+  -- part 2--
+	select * from teams
+	where teamid in (SELECT teamid from teams where WSWin = 'Y' )
+	and yearid > 2000
+	
+	TOR
+	STL
+	PHI
+	PIT
+	OAK
+	
+	select yearid, teamid, attendance, wswin
+	into temp table Winner
+	from teams
+    where teamid in ('PHI')
+	and yearid =2009
+	and wswin = 'N'
+	
+	
+	select yearid, teamid, attendance, wswin
+	into temp table Lost
+	from teams
+    where teamid in ('PHI')
+	and yearid >=2000
+	and wswin = 'Y'
+	
+	
+	select w.teamid, w.yearid, w.attendance as AttendanceW, l.yearid, l.attendance as AttendanceL
+	from Winner w
+	left join Lost l
+		on w.Teamid = l.teamid
+	
+	drop table Winner
+	drop table Lost
+	
+	SELECT * FROM CROSSTAB(
+						  'SELECT
+								*
+							FROM teams
+							ORDER BY 1,2'
+						  ) 
+AS summary(
+	store VARCHAR, 
+    "2016" INT, 
+    "2017" INT, 
+    "2018" INT
+    );
+	
